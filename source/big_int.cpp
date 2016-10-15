@@ -410,8 +410,9 @@ std::pair<Big_int, Big_int> Big_int::division_with_rest(const Big_int& rhs,
 	//nomalize
 	v <<= shift;
 	u <<= shift;
-	u_sz += shift / word_type_size;
-	v_sz += shift / word_type_size;
+	//u_sz += 1;
+	u.num.resize(u_sz+1,0);
+	//v_sz += shift / word_type_size;
 
 	//place to put quotient
 	Big_int q {0};
@@ -421,11 +422,11 @@ std::pair<Big_int, Big_int> Big_int::division_with_rest(const Big_int& rhs,
 	for (size_type j = q.num.size(); j-- > 0;) {//TODO:check the # of iteratations
 		//Calculate qhat
 		//TODO: check indexes in
-		//	u.num[j + v_sz + 1] << IT used to be this
+		//	u.num[j + v_sz] << IT used to be this
 		long_word_type qhat = (u.num[j + v_sz] * base +
-							   u.num[j + v_sz - 1]) / v.num[v_sz];
+							   u.num[j + v_sz - 1]) / v.num[v_sz - 1];
 		long_word_type rhat = (u.num[j + v_sz] * base +
-							   u.num[j + v_sz - 1]) - qhat * v.num[v_sz];
+							   u.num[j + v_sz - 1]) - qhat * v.num[v_sz - 1];
 			   /*
 			   long_word_type rhat = (u.num[j + v_sz + 1] * base +
 							   u.num[j + v_sz]) % v.num[v_sz];
@@ -436,7 +437,7 @@ std::pair<Big_int, Big_int> Big_int::division_with_rest(const Big_int& rhs,
 				(qhat*v.num[v_sz - 1]) >
 				(base*rhat + u.num[j + v_sz - 1])) {
 				--qhat;
-				rhat += v.num[v_sz];
+				rhat += v.num[v_sz-1];
 				if (rhat < base) {
 					continue;
 				}
@@ -457,7 +458,7 @@ std::pair<Big_int, Big_int> Big_int::division_with_rest(const Big_int& rhs,
 		//substract from u;
 		bool u_k {false};//substraction may only underflowr by 1
 		long_word_type v_k {0};
-		for (size_type i = 0; i < v_sz + 1; ++i) {
+		for (size_type i = 0; i < v_sz; ++i) {
 			long_word_type v_tmp {qhat * v.num[i] + v_k};
 			v_k = v_tmp >> word_type_size;
 			word_type v_i =
@@ -477,7 +478,7 @@ std::pair<Big_int, Big_int> Big_int::division_with_rest(const Big_int& rhs,
 		if (v_k >= base) {
 			--qhat;
 			u_k = false;
-			for (size_type i = 0; i < v_sz + 1; ++i) {
+			for (size_type i = 0; i < v_sz; ++i) {
 				long_word_type u_tmp {u.num[i + j] + v.num[i]};
 				u.num[i + j] =
 					(u_tmp << word_type_size) >> word_type_size;
