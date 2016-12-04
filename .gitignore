@@ -30,4 +30,5 @@
 #My addition
 #All the Visual Stuio stuff in algorithms folder
 algorithms/*
+.vs/*
 .gitattributes
