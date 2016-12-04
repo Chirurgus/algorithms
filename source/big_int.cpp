@@ -14,44 +14,47 @@
 
 // Helper functions
 
-//This function calculates the sum of l and r
-//returns the most least signifiact bits that fit into word_type(unsigned char)
-//and sets left_over if any more bits carry over
-Big_int::word_type adder(Big_int::word_type l, Big_int::word_type r,
-						 bool carry_bit = false, bool* left_over = nullptr) {
-	long long int i{r + l + carry_bit};
-	Big_int::word_type ret {static_cast<Big_int::word_type>(i)};
-	bool ret_bit {false};
-	if (ret < i) {
-		//overflow
-		ret_bit = true;
-	}
-	if (left_over) {
-		*left_over = ret_bit;
-	}
-	return ret;
-}
-
-
-
 // !Helper functions
-
-Big_int::Big_int(int i)
-	:Big_int(static_cast<unsigned long long>(i)) {}
+/*
+Big_int::Big_int(int i):Big_int(i) {}
 
 Big_int::Big_int(unsigned long long l)
-	:num(sizeof(unsigned long long), {}) {
-	for (int i = 0; i < sizeof(unsigned long long); ++i, l >>= char_bit_size) {
-		unsigned long long mask {0x1};
-		word_type w {0};
-		for (int j = 0; j < char_bit_size; ++j, mask <<= 1) {
-			w |= l & mask;
+	:num((sizeof(unsigned long long)*char_bit_size)/word_type_size, 0) {
+	unsigned long long mask {0x1};
+	for (int i = 0; i < sizeof(unsigned long long)*char_bit_size; ++i) {
+		if (mask & l) {
+			set_bit(i, 1);
 		}
-		num[i] = w;
+		mask <<= 1;
 	}
 }
+*/
 
-Big_int Big_int::operator+(const Big_int& rhs) const {
+Big_int& Big_int::operator+=(const Big_int& v) {
+	size_type v_sz {v.num.size()};
+	while (v_sz && v.num[v_sz - 1] == 0) { --v_sz; }
+	size_type u_sz {num.size()};
+	while (u_sz && num[u_sz - 1] == 0) { --u_sz; }
+	
+	num.resize((u_sz < v_sz ? v_sz : u_sz), 0);
+	u_sz = num.size();
+	size_type i {0};
+	bool k {0};
+	for (;i < v_sz; ++i) {
+		long_word_type tmp {long_word_type(num[i]) + v.num[i] + k};
+		k = tmp >= base;
+		num[i] = tmp;
+	}
+	for (; i < u_sz; ++i) {
+		long_word_type tmp {num[i] + k};
+		k = tmp >= base;
+		num[i] = tmp;
+	}
+	if (k) {
+		num.push_back(k);
+	}
+	return *this;
+	/*
 	std::vector<word_type> vec {};
 	bool carry_bit {false};
 
@@ -75,9 +78,30 @@ Big_int Big_int::operator+(const Big_int& rhs) const {
 	Big_int ret {};
 	ret.num.swap(vec);
 	return ret;
+	*/
 }
 
-Big_int Big_int::operator-(const Big_int & rhs) const {
+Big_int& Big_int::operator-=(const Big_int& v) {
+	size_type v_sz {v.num.size()};
+	while (v_sz && v.num[v_sz - 1] == 0) { --v_sz; }
+	size_type u_sz {num.size()};
+	while (u_sz && num[u_sz - 1] == 0) { --u_sz; }
+	if (u_sz == 0) ++u_sz;
+	num.resize(u_sz, 0);
+	bool k {0};
+	size_type i {0};
+	for (; i < v_sz && i < u_sz; ++i) {
+		long_word_type sub {long_word_type(v.num[i]) + k};
+		k = num[i] < sub;
+		num[i] = num[i] - sub;
+	}
+	for (; i < u_sz; ++i) {
+		long_word_type sub {k};
+		k = num[i] < sub;
+		num[i] = num[i] - sub;
+	}
+	return *this;
+	/*
 	Big_int ret {0};
 	bool carry_bit {0};
 	size_type i_max = 
@@ -131,39 +155,28 @@ Big_int Big_int::operator-(const Big_int & rhs) const {
 	}
 	//if carry_bit == true, the resulting number is negative
 	return ret;
+	*/
 }
 
 Big_int& Big_int::operator*=(const Big_int & rhs) {
-	/*
-	Big_int ret {};
-	Big_int tmp {rhs};
-	for (size_type i = 0, i_max = num.size() * char_bit_size;
-		 i < i_max;
-		 ++i, tmp.left_bit_shift()) {
-		if ((*this).inspect_bit(i)) {
-			ret += tmp;
-		}
-	}
-	return ret;
-	*/
-	size_type u_sz {num.size() - 1};
-	while (u_sz && num[u_sz] == 0)  --u_sz;
-	size_type v_sz {rhs.num.size() - 1};
-	while (v_sz && rhs.num[v_sz] == 0) --v_sz;
+	size_type u_sz {num.size()};
+	while (u_sz && num[u_sz - 1] == 0)  --u_sz;
+	size_type v_sz {rhs.num.size()};
+	while (v_sz && rhs.num[v_sz - 1] == 0) --v_sz;
 	
 	Big_int ret;
-	ret.num.resize(u_sz + v_sz + 2, 0);
+	ret.num.resize(u_sz + v_sz, 0);
 
 	
-	for (size_type i = 0; i < u_sz + 1; ++i) {
+	for (size_type i = 0; i < u_sz; ++i) {
 		long_word_type k {0};
-		for (size_type j = 0; j < v_sz + 1; ++j) {
-			long_word_type tmp {num[i] * rhs.num[j] + ret.num[i+j] + k};
+		for (size_type j = 0; j < v_sz; ++j) {
+			long_word_type tmp {long_word_type(num[i]) * rhs.num[j] + ret.num[i+j] + k};
 			k = tmp >> word_type_size;
-			ret.num[i+j] = 
-				(tmp << word_type_size) >> word_type_size;
+			ret.num[i + j] = tmp;
+				//(tmp << word_type_size) >> word_type_size;
 		}
-		ret.num[i + v_sz + 1] = k;
+		ret.num[i + v_sz] = k;
 	}
 	return *this = ret;
 }
@@ -244,6 +257,7 @@ bool Big_int::operator==(const Big_int & rhs) const {
 }
 
 unsigned long long Big_int::to_ull() const {
+	/*
 	unsigned long long ret {0};
 	unsigned long long mask {0x1};
 	for (size_type i = 0, i_max = sizeof(unsigned long long) * char_bit_size; i < i_max; ++i) {
@@ -253,18 +267,31 @@ unsigned long long Big_int::to_ull() const {
 		mask <<= 1;
 	}
 	return ret;
+	*/
+	unsigned long long ret {0};
+	ret |= num[0];
+	if (num.size() >= 2) {
+		unsigned long long tmp = unsigned long long (num[1]) << 32;
+		ret |= tmp;
+		
+	}
+	return ret;
+}
+
+Big_int::operator bool() const {
+	return *this != 0;
 }
 
 bool Big_int::inspect_bit(const size_type sz) const {
-		const size_type i = sz / char_bit_size;
+		const size_type i = sz / word_type_size;
 		if (i >= num.size())
 			return 0;
 		return static_cast<bool>(num[i] &
-								 0x1 << sz % char_bit_size);
+								 long_word_type(0x1) << sz % word_type_size);
 	}
 
 void Big_int::set_bit(const size_type sz, const bool b) {
-	const size_type i = sz / char_bit_size;
+	const size_type i = sz / word_type_size;
 	long long diff = (i + 1) - static_cast<long long>(num.size());
 	if (diff > 0) {
 		for (size_type j = 0; j < diff; ++j) {
@@ -272,31 +299,19 @@ void Big_int::set_bit(const size_type sz, const bool b) {
 		}
 	}
 	word_type tmp = num[i];
-	tmp ^= (-b ^ tmp) & (1 << sz % char_bit_size);
+	tmp ^= (-b ^ tmp) & (0x1 << sz % word_type_size);
 	num[i] = tmp;
-}
-
-void Big_int::left_bit_shift() {
-	size_type max = num.size() * char_bit_size - 1;
-	if (inspect_bit(max)) {
-		num.push_back(0x1);
-	}
-	for (size_type i = max; i >= 1; --i) {
-		set_bit(i, inspect_bit(i - 1));
-	}
-	set_bit(0, 0);
-	//This is actually multiple multitudes slower, dunno why
-	/*
-	*this <<= 1;
-	*/
 }
 
 Big_int& Big_int::operator>>= (const size_type rhs){
 	size_type shift = rhs / word_type_size;
 	size_type in_word_shift = rhs % word_type_size;
+	if (num.size() <= shift) {
+		return *this = Big_int {0};
+	}
 	for (size_type i = 0; i < num.size() - shift - 1; ++i) {
 		num[i] = (num[i + shift] >> in_word_shift) |
-			(num[i + shift + 1] << 
+			(long_word_type(num[i + shift + 1]) << 
 			(word_type_size - in_word_shift));
 	}
 	num[num.size() - shift - 1] =
@@ -307,17 +322,9 @@ Big_int& Big_int::operator>>= (const size_type rhs){
 		num[i] = 0;
 	}
 	return *this;
-	//Old lazy version
-	/*
-		return *this / Big_int(static_cast<size_type>(pow(2, rhs)));
-		*/
 }
 
 Big_int& Big_int::operator<<=(size_type rhs) {
-	//Old lazy version
-	/*
-	return *this * Big_int(static_cast<unsigned long long>(pow(2, rhs)));
-	*/
 	//Possible optimization:
 	//		check if in_word_shift is nul, 
 	//		if so all the bit shift ops are 
@@ -330,7 +337,7 @@ Big_int& Big_int::operator<<=(size_type rhs) {
 		num.resize(num.size() + shift, 0);
 	for (size_type i = num.size() - 1; i >= shift + 1; --i) {
 			word_type tmp = (num[i - shift] << in_word_shift) |
-			(num[i - shift - 1] >> (word_type_size - in_word_shift));
+			(long_word_type(num[i - shift - 1]) >> (word_type_size - in_word_shift));
 			num[i] = tmp;
 	}
 	num[shift] = num[0] << in_word_shift;
@@ -358,21 +365,21 @@ Big_int get_rand_big_int(const Big_int::size_type bit_size,
 
 std::pair<Big_int, Big_int> Big_int::division_with_rest(const Big_int& rhs,
 														const Big_int& lhs) const {
-	size_type base = std::numeric_limits<word_type>::max() + 1;
 	Big_int u = rhs;
 	Big_int v = lhs;
 
-	size_type v_sz {v.num.size() - 1};
-	while (v_sz && v.num[v_sz] == 0) { --v_sz; }
-	size_type u_sz {u.num.size() - 1};
-	while (v_sz && u.num[u_sz] == 0) { --u_sz; }
+	size_type v_sz {v.num.size()};
+	while (v_sz && v.num[v_sz - 1] == 0) { --v_sz; }
+	size_type u_sz {u.num.size()};
+	while (u_sz && u.num[u_sz - 1] == 0) { --u_sz; }
+
 	//Handle the case where u and v are same sizes
-	if (v_sz == 0 || v == 0) {
+	if (v_sz == 1 || v == 0) {
 		if (v == 0)
 			throw Bad_int {};
-		//Handle case where v is single radix-b digit
+		//Handle case where v is single radix-base digit
 		Big_int q {0};
-		q.num.resize(u_sz + 1, 0);
+		q.num.resize(u_sz, 0);
 		word_type tmp {0};
 		for (size_type i = u_sz; i-- > 0;) {
 			q.num[i] = (tmp*base + u.num[i]) / v.num[0];
@@ -380,21 +387,18 @@ std::pair<Big_int, Big_int> Big_int::division_with_rest(const Big_int& rhs,
 		}
 		return {q, tmp};
 	}
+	/*
 	if (u_sz == v_sz) {
-		long_word_type qhat = u.num[u_sz] / v.num[v_sz];
+		long_word_type qhat = long_word_type(u.num[u_sz - 1]) / v.num[v_sz - 1];
 		Big_int tmp = v * qhat;
 		while (tmp > u) {
 			--qhat;
 			tmp -= v;
 		}
 		return {qhat, u - tmp};
-		/*
-		if (u_sz == u.num.size() - 1) {
-			u.num.push_back(0);
-		}
-		++u_sz;
-		*/
 	}
+	*/
+
 	if (u_sz < v_sz) {
 		return {0, u};
 	}
@@ -402,7 +406,7 @@ std::pair<Big_int, Big_int> Big_int::division_with_rest(const Big_int& rhs,
 	//Normalize
 	//count number of leading 0s in v[v_sz]
 	size_type shift {0};
-	for (word_type i = v.num[v_sz]; i; i <<= 1) {
+	for (word_type i = v.num[v_sz - 1]; i; i <<= 1) {
 		if (i & (0x1 << word_type_size - 1))
 			break;
 		++shift;
@@ -412,13 +416,23 @@ std::pair<Big_int, Big_int> Big_int::division_with_rest(const Big_int& rhs,
 	u <<= shift;
 	//u_sz += 1;
 	u.num.resize(u_sz+1,0);
-	//v_sz += shift / word_type_size;
+	/*
+	if (u_sz == v_sz) {
+		long_word_type qhat = long_word_type(u.num[u_sz]) / v.num[v_sz - 1];
+		Big_int tmp = v * qhat;
+		while (tmp > u) {
+			--qhat;
+			tmp -= v;
+		}
+		return {qhat, (u - tmp) >> shift};
+	}
+	*/
 
 	//place to put quotient
 	Big_int q {0};
 	q.num.resize(u_sz - v_sz + 1, 0);//TODO::check the size
 
-	//main loop
+		//main loop
 	for (size_type j = q.num.size(); j-- > 0;) {//TODO:check the # of iteratations
 		//Calculate qhat
 		//TODO: check indexes in
@@ -434,10 +448,10 @@ std::pair<Big_int, Big_int> Big_int::division_with_rest(const Big_int& rhs,
 
 		for (;;) {
 			if (qhat >= base ||
-				(qhat*v.num[v_sz - 1]) >
-				(base*rhat + u.num[j + v_sz - 1])) {
+				(qhat*v.num[v_sz - 2]) >
+				(base*rhat + u.num[j + v_sz - 2])) {
 				--qhat;
-				rhat += v.num[v_sz-1];
+				rhat += v.num[v_sz - 1];
 				if (rhat < base) {
 					continue;
 				}
@@ -459,32 +473,31 @@ std::pair<Big_int, Big_int> Big_int::division_with_rest(const Big_int& rhs,
 		bool u_k {false};//substraction may only underflowr by 1
 		long_word_type v_k {0};
 		for (size_type i = 0; i < v_sz; ++i) {
-			long_word_type v_tmp {qhat * v.num[i] + v_k};
+			long_word_type v_tmp {qhat * long_word_type(v.num[i]) + v_k};
 			v_k = v_tmp >> word_type_size;
 			word_type v_i =
 				(v_tmp << word_type_size) >> word_type_size;
-			long_word_type u_tmp {u.num[i + j] - v_i - u_k};
-			u_k = static_cast<bool>(u_tmp >= base);
+			long_word_type u_tmp {long_word_type(u.num[i + j]) - v_i - u_k};
+			u_k = u_tmp >= base;
 			word_type u_i =
 				(u_tmp << word_type_size) >> word_type_size;
 			u.num[i + j] = u_i;
 		}
 		//TODO: check indices
-		v_k = u.num[j + v_sz] - v_k;
-		u.num[j + v_sz] =
-			(v_k << word_type_size) >> word_type_size;
+		v_k = u.num[j + v_sz] - v_k - u_k;
+		u.num[j + v_sz] = v_k;//let it underflow
+			//(v_k << word_type_size) >> word_type_size;
 
 		//check if we substracted too much;
 		if (v_k >= base) {
 			--qhat;
 			u_k = false;
 			for (size_type i = 0; i < v_sz; ++i) {
-				long_word_type u_tmp {u.num[i + j] + v.num[i]};
-				u.num[i + j] =
-					(u_tmp << word_type_size) >> word_type_size;
-				u_k = static_cast<bool>(u_tmp >= base);
+				long_word_type u_tmp {long_word_type(u.num[i + j]) + v.num[i] + u_k};
+				u.num[i + j] = u_tmp;
+					//(u_tmp << word_type_size) >> word_type_size;
+				u_k = u_tmp >= base;
 			}
-			//TODO: check indices
 			u.num[j + v_sz] += u_k;
 		}
 		q.num[j] = qhat;
@@ -493,18 +506,23 @@ std::pair<Big_int, Big_int> Big_int::division_with_rest(const Big_int& rhs,
 }
 
 std::ostream & operator<<(std::ostream & os, const Big_int & n) {
-	for (const Big_int::word_type x : n.num) {
-		if (!(os << x)) {
-			break;
+	if (os << n.num.size()) {
+		for (const Big_int::word_type x : n.num) {
+			if (!(os << x)) break;
 		}
 	}
 	return os;
 }
 
-std::istream & operator >> (std::istream & is, Big_int & n) {
+std::istream & operator>> (std::istream & is, Big_int & n) {
 	n.num.clear();
-	for (Big_int::word_type x {}; is >> x;) {
-		n.num.push_back(x);
+	Big_int::size_type sz {};
+	if (is >> sz) {
+		n.num.reserve(sz);
+		for (Big_int::word_type x {}; is >> x;) {
+			n.num.push_back(x);
+		}
 	}
+	
 	return is;
 }

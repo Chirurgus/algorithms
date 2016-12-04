@@ -21,7 +21,7 @@ bool modular_equation(const unsigned long long a,
 unsigned long long modular_exponentiation(const unsigned long long a,
 							  const unsigned long long b,
 							  const unsigned long long n);
-//works only for primes
+//works only for primes <= no shit
 struct RSA_key {
 	unsigned long long e;
 	unsigned long long n;

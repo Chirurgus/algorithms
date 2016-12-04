@@ -12,25 +12,36 @@
 
 //Magic numbers
 constexpr size_t char_bit_size = sizeof(unsigned char)*8;
-constexpr size_t word_type_size = sizeof(unsigned char) * char_bit_size;
+
 class Big_int {
 public:
-	using word_type = unsigned char;//assumed to be usigned
+	using word_type = unsigned __int32;//unsigned char;//assumed to be usigned
 	using size_type = std::vector<word_type>::size_type;
 	//assumed to be at lest 2*sizeof(word_type);
-	using long_word_type = int;
+	using long_word_type = unsigned __int64;
+
+	static constexpr size_type word_type_size = sizeof(word_type) * char_bit_size;
+	static constexpr unsigned long long base {4294967296};
 
 	friend std::ostream& operator<<(std::ostream& os, const Big_int& n);
-	friend std::istream& operator>>(std::istream& is, Big_int& n);
+	friend std::istream& operator >> (std::istream& is, Big_int& n);
 
-	Big_int()
-		:num(1, 0) {}
-	Big_int(unsigned char c)
-		:num(1, c) {}
+	Big_int(): num(1, 0) {}
+	Big_int(int i): num(1, i) {}
+	Big_int(word_type w): num(1, w) {}
+	Big_int(unsigned long long l): num(2, 0) {
+		num[0] = l;//(l << 32) >> 32;
+		num[1] = (l >> 32);
+	}
+/*
+	Big_int() :num(1, 0) {}
+	Big_int(unsigned char c) :num(1, c) {}
 	Big_int(int i);
 	Big_int(unsigned long long l);
+	Big_int(word_type w): num(1, w) {}
 	Big_int(size_type l): Big_int {static_cast<unsigned long long>(l)} {}
 
+	*/
 	Big_int(const Big_int& i): num(i.num) {}
 
 	Big_int& operator=(const Big_int& i) = default;
@@ -48,8 +59,30 @@ public:
 	// Exception Classes
 	class Bad_int {};
 
-	Big_int operator+(const Big_int& rhs) const;
-	Big_int operator-(const Big_int& rhs) const;
+	Big_int test(const Big_int& v) {
+		size_type base =
+			std::numeric_limits<word_type>::max() + 1;
+		size_type v_sz {v.num.size()};
+		while (v_sz && v.num[v_sz - 1] == 0) { --v_sz; }
+		size_type u_sz {num.size()};
+		while (u_sz && num[u_sz - 1] == 0) { --u_sz; }
+		
+		num.resize((u_sz < v_sz ? v_sz : u_sz), 0);
+		u_sz = num.size();
+		size_type i {0};
+		bool k {0};
+		for (;i < v_sz; ++i) {
+			long_word_type tmp {num[i] + v.num[i] + k};
+			k = tmp >= base;
+			num[i] = tmp;
+		}
+		if (k) {
+			num.push_back(k);
+		}
+		return *this;
+	}
+	Big_int& operator+=(const Big_int& v);
+	Big_int& operator-=(const Big_int& v);
 	Big_int& operator*=(const Big_int& rhs);
 	Big_int operator/(Big_int rhs) const;
 	Big_int operator%(const Big_int& rhs) const;
@@ -66,6 +99,8 @@ public:
 
 	unsigned long long to_ull() const;
 
+	explicit operator bool() const;
+
 	//these two have HORRIBLE performance
 	//	use only as shorthand for bit ops
 	//	for extracting bits
@@ -76,17 +111,18 @@ public:
 												   const Big_int& rhs) const;
 private:
 	
-	void left_bit_shift();
 	std::vector<word_type> num;
 };
 
-inline Big_int& operator+=(Big_int& lhs ,
+inline Big_int operator+(const Big_int& lhs ,
 						const Big_int& rhs) {
-	return lhs = lhs + rhs;
+	Big_int ret {lhs};
+	return ret += rhs;
 }
-inline Big_int& operator-=(Big_int& lhs ,
+inline Big_int operator-(const Big_int& lhs ,
 						  const Big_int& rhs) {
-	return lhs = lhs - rhs;
+	Big_int ret {lhs};
+	return ret -= rhs;
 }
 inline Big_int operator*(const Big_int& lhs ,
 						  const Big_int& rhs) {
@@ -103,12 +139,12 @@ inline Big_int& operator%=(Big_int& lhs ,
 }
 
 inline Big_int operator<<(const Big_int& lhs,
-							const Big_int::size_type& rhs) {
+						  const Big_int::size_type& rhs) {
 	Big_int ret {lhs};
 	return ret <<= rhs;
 }
 inline Big_int operator>>(const Big_int& lhs,
-							const Big_int::size_type& rhs) {
+						  const Big_int::size_type& rhs) {
 	Big_int ret {lhs};
 	return ret >>= rhs;
 }

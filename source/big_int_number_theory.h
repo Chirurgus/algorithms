@@ -7,6 +7,7 @@
 #include <random>
 
 #include "big_int.h"
+#include "s_big_int.h"
 
 //works only for primes
 struct RSA_key {
@@ -23,15 +24,16 @@ Big_int euclid_gcd(Big_int a, Big_int b) {
 }
 
 Big_int extended_euclid(const Big_int a,
-					   const Big_int b,
-						Big_int & x,Big_int & y) {
+					    const Big_int b,
+						s_Big_int & x,
+						s_Big_int & y) {
 	if (b == 0) {
-		x = Big_int{1};
-		y = Big_int {0};
+		x = s_Big_int {1};
+		y = s_Big_int {0};
 		return a;
 	}
 	Big_int d {extended_euclid(b, a%b , x, y)};
-	Big_int tmp {x};
+	s_Big_int tmp {x};
 	x = y;
 	y = tmp - (a/b) * y;
 	return d;
@@ -42,13 +44,13 @@ bool modular_equation(const Big_int a,
 					  const Big_int n, 
 					  Big_int& result,
 					  Big_int& period) {
-	Big_int x {};
-	Big_int y {};
+	s_Big_int x {};
+	s_Big_int y {};
 	Big_int d {extended_euclid(a, n, x, y)};
 	if (d%b != 0) {
 		return false;
 	}
-	result = x*(b / d) % n;
+	result = (x*(b / d) % n).to_big_int();//result of mod is > 0
 	period = (n / d);
 	return true;
 }
@@ -68,11 +70,17 @@ Big_int modular_exponentiation(Big_int a,
 	Big_int ret {1};
 	for (; b > 0; b >>= 1) {
 		if (b.inspect_bit(0)) {
+			/*
 			Big_int tmp = (ret*a);
 			ret = tmp % n;
+			*/
+			ret = (ret*a) % n;
 		}
+		/*
 		Big_int a_tmp = (a*a);
 		a = a_tmp % n;
+		*/
+		a = (a*a) % n;
 	}
 	return ret;
 }
