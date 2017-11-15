@@ -108,6 +108,7 @@ void phase2_lin_prog_solve(Matrix<double>& t) {
 			if (t(i, pivot_column) <= 0) continue;
 			if (t(i, t_width - 1) / t(i, pivot_column) < min_ratio) {
 				pivot_row = i;
+				min_ratio = t(i, t_width - 1) / t(i, pivot_column);
 			}
 		}
 		pivot(t, pivot_row, pivot_column);
@@ -153,7 +154,7 @@ bool column_is_memberwise_positive(const Matrix<double>& m,
 }
 
 //max v + obj*x
-//subect to s = b - a*x
+//subect to s = b - a*x iff a*x <= b
 //arguments assumed to be in standard form
 double linear_prog_solve(const std::vector<double>& obj,
 						 const std::vector<double>& b,
